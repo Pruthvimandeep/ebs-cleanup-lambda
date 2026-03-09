@@ -1,0 +1,40 @@
+import boto3
+
+DRY_RUN = False
+ec2 = boto3.resource('ec2')
+
+def lambda_handler(event, context):
+
+    print("EBS Cleanup Lambda Started")
+
+    for vol in ec2.volumes.all():
+
+        print(f"Checking volume {vol.id} | State: {vol.state}")
+
+        if vol.state == 'available':
+
+            if not vol.tags:
+                if DRY_RUN:
+                    print(f"[DRY RUN] Would delete untagged volume {vol.id}")
+                else:
+                    vol.delete()
+                    print(f"Deleted untagged volume {vol.id}")
+                continue
+
+            tags = {tag['Key']: tag['Value'] for tag in vol.tags}
+
+            if tags.get("Delete") == "False":
+                print(f"Skipping protected volume (Delete=False): {vol.id}")
+                continue
+
+            if tags.get("Name") == "DND":
+                print(f"Skipping protected volume (Name=DND): {vol.id}")
+                continue
+
+            if DRY_RUN:
+                print(f"[DRY RUN] Would delete volume {vol.id}")
+            else:
+                vol.delete()
+                print(f"Deleted volume {vol.id}")
+
+    print("EBS Cleanup Lambda Finished")
